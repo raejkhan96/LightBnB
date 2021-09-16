@@ -42,6 +42,7 @@ module.exports = function(router, database) {
           res.send({error: "error"});
           return;
         }
+        console.log('USER',user)
         req.session.userId = user.id;
         res.send({user: {name: user.name, email: user.email, id: user.id}});
       })
@@ -55,6 +56,7 @@ module.exports = function(router, database) {
 
   router.get("/me", (req, res) => {
     const userId = req.session.userId;
+    console.log('USERID', userId);
     if (!userId) {
       res.send({message: "not logged in"});
       return;
