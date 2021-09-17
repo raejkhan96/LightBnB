@@ -112,14 +112,69 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function(options, limit = 10) {
-  return pool
-    .query( `SELECT * FROM properties LIMIT $1`,[limit])
-    .then((result) => {
-      return (result.rows);
-    })
-    .catch((err) => {
-      return (err.message);
-    });
+  
+  const queryParams = [];
+
+  let queryString = `
+  SELECT properties.*, avg(property_reviews.rating) AS average_rating
+  FROM properties
+  JOIN property_reviews ON properties.id = property_reviews.property_id
+  WHERE 1 = 1
+  `;
+  console.log('CITY', options.city);
+  if (options.city) {
+    queryParams.push(`%${options.city}`);
+    queryString += `AND properties.city LIKE $${queryParams.length}`;
+  }
+
+  // Owner Id cant be passed in from search query?
+  // Why 2 $
+  // Why queryParams.length? does query params as opposed to options not contain previous things
+  if (options.owner_id) {
+    queryParams.push(`${options.owner_id}`);
+    queryString += `
+    AND properties.owner_id = $${options.owner_id}`;
+  }
+
+  if (options.minimum_price_per_night) {
+    queryParams.push(`${options.minimum_price_per_night}`);
+    queryString += `
+    AND properties.cost_per_night/100 > $${queryParams.length}`;
+  }
+
+  if (options.maximum_price_per_night) {
+    queryParams.push(`${options.maximum_price_per_night}`);
+    queryString += `
+    AND properties.cost_per_night/100 < $${queryParams.length}`;
+  }
+
+  queryString += `
+  GROUP BY properties.id`
+
+  if (options.minimum_rating) {
+    queryParams.push(`${options.minimum_rating}`);
+    queryString += `
+    HAVING avg(property_reviews.rating) >= $${queryParams.length}`;
+  }
+
+  queryParams.push(limit);
+  queryString += `
+  ORDER BY cost_per_night
+  LIMIT $${queryParams.length};
+  `;
+ 
+  console.log(queryString, queryParams);
+
+  return pool.query(queryString, queryParams).then((res) => res.rows);
+  
+  // return pool
+  //   .query( `SELECT * FROM properties LIMIT $1`,[limit])
+  //   .then((result) => {
+  //     return (result.rows);
+  //   })
+  //   .catch((err) => {
+  //     return (err.message);
+  //   });
 };
 exports.getAllProperties = getAllProperties;
 
@@ -130,6 +185,7 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
+ 
   const propertyId = Object.keys(properties).length + 1;
   property.id = propertyId;
   properties[propertyId] = property;
